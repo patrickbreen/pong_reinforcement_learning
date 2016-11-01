@@ -1,3 +1,5 @@
+import sys
+
 import pygame
 
 # parameters
@@ -85,7 +87,7 @@ while True:
 
   # capture screen, action and score every "frame_capture" frames
   if frame % frame_capture == 0:
-    screen_str = pygame.image.tostring(screen, "RGBA").hex()
+    screen_str = pygame.image.tostring(screen, "RGBX").hex()
     with open("saved_gameplay/actions.txt", "a") as f:
       f.write(str(action) + "\n")
     with open("saved_gameplay/scores.txt", "a") as f:
