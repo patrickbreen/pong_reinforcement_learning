@@ -1,2 +1,6 @@
 *venv/
 saved_gameplay/*
+.ipynb_checkpoints/*
+saved_models/*
+keras_RL_tutorial/*
+
