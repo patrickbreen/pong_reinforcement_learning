@@ -1,136 +1,174 @@
 import sys
 import shutil
 import os
+import random
 
 import pygame
 import numpy as np
 
-# parameters
-size = width, height = (280, 200)
-wait = 10
-black = (0, 0, 0)
-velocity = [1, 1]
-goals_scored = 0
-frame_capture = 10
+class MyPongEnv:
+    def __init__(self):
+        # parameters
+        self.size = self.width, self.height = (280, 200)
+        self.wait = 10
+        self.black = (0, 0, 0)
+        self.velocity = [1, 1]
+        self.goals_scored = 0
+        self.frame_capture = 10
+        self.frame = 0
 
-# set up objects
-screen = pygame.display.set_mode(size)
+        # set up objects
+        self.screen = pygame.display.set_mode(self.size)
 
-ball = pygame.image.load("ball.jpeg")
-ball = pygame.transform.scale(ball, (20, 20))
-ballrect = ball.get_rect()
-ballrect = ballrect.move([20, 20])
+        self.ball = pygame.image.load("ball.jpeg")
+        self.ball = pygame.transform.scale(self.ball, (20, 20))
+        self.ballrect = self.ball.get_rect()
+        self.ballrect = self.ballrect.move([20, 20])
 
-pad1 = pygame.image.load("paddle.jpeg")
-pad1 = pygame.transform.scale(pad1, (15, 40))
-padrect1 = pad1.get_rect()
-padrect1 = padrect1.move([0, 70])
+        self.pad1 = pygame.image.load("paddle.jpeg")
+        self.pad1 = pygame.transform.scale(self.pad1, (15, 40))
+        self.padrect1 = self.pad1.get_rect()
+        self.padrect1 = self.padrect1.move([0, 70])
 
-pygame.font.init()
-myfont = pygame.font.SysFont("Comic Sans MS", 16)
+        pygame.font.init()
+        self.myfont = pygame.font.SysFont("Comic Sans MS", 16)
 
-# clear saved gameplay
-shutil.rmtree("saved_gameplay/actions", ignore_errors=True)
-os.mkdir("saved_gameplay/actions") 
-shutil.rmtree("saved_gameplay/screens", ignore_errors=True)
-os.mkdir("saved_gameplay/screens") 
+        # clear saved gameplay
+        shutil.rmtree("saved_gameplay/actions", ignore_errors=True)
+        os.mkdir("saved_gameplay/actions")
+        shutil.rmtree("saved_gameplay/screens", ignore_errors=True)
+        os.mkdir("saved_gameplay/screens")
 
-# convert hex string representation of screen to numpy array
-def get_img_mat_from_hex(screen):
-  screen = screen.strip()
 
-  red_ar = np.empty((width,height), dtype=np.float16)
-  green_ar = np.empty((width,height), dtype=np.float16)
-  blue_ar = np.empty((width,height), dtype=np.float16)
+    def step(self, action):
 
-  row = 0
-  col = 0
+        # convert hex string representation of screen to numpy array
+        def get_img_mat_from_hex(screen, width, height):
+            screen = screen.strip()
 
-  for start in range(0, len(screen), 8):
-    red_ar[row, col] = int(screen[start:start+2], 16)
-    green_ar[row, col] = int(screen[start+2:start+4], 16)
-    blue_ar[row, col] = int(screen[start+4:start+6], 16)
+            red_ar = np.empty((width, height), dtype=np.float16)
+            green_ar = np.empty((width, height), dtype=np.float16)
+            blue_ar = np.empty((width, height), dtype=np.float16)
 
-    if row < width-1:
-      row += 1
-    else:
-      col += 1
-      row = 0
-      
-  red_ar = red_ar.T
-  green_ar = green_ar.T
-  blue_ar = blue_ar.T
+            row = 0
+            col = 0
 
-  return np.concatenate((red_ar[...,np.newaxis],green_ar[...,np.newaxis], blue_ar[...,np.newaxis]),axis=2)
+            for start in range(0, len(screen), 8):
+                red_ar[row, col] = int(screen[start:start + 2], 16)
+                green_ar[row, col] = int(screen[start + 2:start + 4], 16)
+                blue_ar[row, col] = int(screen[start + 4:start + 6], 16)
 
-# game loop
-frame = 0
+                if row < width - 1:
+                    row += 1
+                else:
+                    col += 1
+                    row = 0
 
-# action holds the player action
-# 0 is no action, 1 is up, -1 is down
-action = 0
+            red_ar = red_ar.T
+            green_ar = green_ar.T
+            blue_ar = blue_ar.T
+
+            return np.concatenate((red_ar[..., np.newaxis], green_ar[..., np.newaxis], blue_ar[..., np.newaxis]), axis=2)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                sys.exit()
+
+        # update ball
+        self.ballrect = self.ballrect.move(self.velocity)
+        pygame.time.wait(self.wait)
+
+        # case where player deflects the ball
+        if self.ballrect.left < self.padrect1.right and \
+                (
+                    (self.padrect1.bottom > self.ballrect.bottom and self.ballrect.bottom > self.padrect1.top)
+                    or
+                    (self.padrect1.bottom < self.ballrect.top and self.ballrect.top < self.padrect1.top)
+                ):
+            self.velocity[0] = -self.velocity[0]
+            self.velocity[1] = -self.velocity[1]
+
+        # case where ball scores
+        if self.ballrect.left < 0:
+            self.goals_scored += 1
+            self.velocity[0] = -self.velocity[0]
+
+        # cases where ball hits walls
+        if self.ballrect.right > self.width:
+            self.velocity[0] = -self.velocity[0]
+
+        if self.ballrect.top < 0 or self.ballrect.bottom > self.height:
+            self.velocity[1] = -self.velocity[1]
+
+        # update paddle based on "action"
+        if action[0] == 1:
+            self.padrect1 = self.padrect1.move([0, -1])
+        elif action[1] == 1:
+            self.padrect1 = self.padrect1.move([0, 1])
+
+        # update score
+        self.score_surface = self.myfont.render(
+            "goals scored = " + str(self.goals_scored), False, (255, 255, 255))
+
+        # np.save("saved_gameplay/screens/" + str(frame), np_array_screen)
+        # np_array_action = np.array(action)
+        # np.save("saved_gameplay/actions/" + str(frame), np_array_action)
+        # with open("saved_gameplay/scores.txt", "w") as f:
+        #     f.write(str(goals_scored) + "\n")
+
+        # if state is screen
+        # screen_str = pygame.image.tostring(self.screen, "RGBX").hex()
+        # new_state = get_img_mat_from_hex(screen_str, self.width, self.height)
+
+        # if state is ball position and paddle position
+        new_state = np.array([self.ballrect.right, self.ballrect.top, self.padrect1.top])
+
+        reward = self.goals_scored
+        done = False
+
+        if reward == 4:
+            done = True
+
+        return new_state, reward, done
+
+    def sample_action_space(self):
+        possible_actions = [
+            np.array([1,0,0]),
+            np.array([0,1,0]),
+            np.array([0,0,1])
+        ]
+        return random.sample(possible_actions)
+
+    def reset(self):
+        self.__init__()
+
+    def render(self):
+        # draw things to screen
+        self.screen.fill(self.black)
+        self.screen.blit(self.ball, self.ballrect)
+        self.screen.blit(self.pad1, self.padrect1)
+        self.screen.blit(self.score_surface, (70, 50))
+        pygame.display.flip()
+
+    def human_player_input(self):
+        # update player 1 (plug in a computer player here)
+        keys = pygame.key.get_pressed()
+
+        if keys[pygame.K_UP] and self.padrect1.top > 0:
+            action = np.array([1, 0, 0])
+        elif keys[pygame.K_DOWN] and self.padrect1.bottom < self.height:
+            action = np.array([0, 1, 0])
+        else:
+            action = np.array([0, 0, 1])
+        return action
+
+
+# human player
+env = MyPongEnv()
 
 while True:
-  for event in pygame.event.get():
-    if event.type == pygame.QUIT: sys.exit()
+    action = env.human_player_input()
+    new_state, reward, done = env.step(action)
 
-  # update ball
-  ballrect = ballrect.move(velocity)
-  pygame.time.wait(wait)
-
-  # case where player deflects the ball
-  if ballrect.left < padrect1.right and \
-    (
-        (padrect1.bottom > ballrect.bottom and ballrect.bottom > padrect1.top)
-        or
-        (padrect1.bottom < ballrect.top and ballrect.top < padrect1.top)
-    ):
-    velocity[0] = -velocity[0]
-    velocity[1] = -velocity[1]
-
-
-  # case where ball scores
-  if ballrect.left < 0:
-    goals_scored += 1
-    velocity[0] = -velocity[0]
-
-  # cases where ball hits walls
-  if ballrect.right > width:
-    velocity[0] = -velocity[0]
-
-  if ballrect.top < 0 or ballrect.bottom > height:
-    velocity[1] = -velocity[1]
-
-  # update player 1
-  keys = pygame.key.get_pressed()
-  if keys[pygame.K_UP] and padrect1.top > 0:
-    padrect1 = padrect1.move([0, -1])
-    action = [1, 0, 0]
-  elif keys[pygame.K_DOWN] and padrect1.bottom < height:
-    padrect1 = padrect1.move([0, 1])
-    action = [0, 1, 0]
-  else:
-    action = [0, 0, 1]
-
-  # update score
-  score_surface = myfont.render("goals scored = " + str(goals_scored), False, (255, 255, 255))
-
-  # draw things to screen
-  screen.fill(black)
-  screen.blit(ball, ballrect)
-  screen.blit(pad1, padrect1)
-  screen.blit(score_surface, (70, 50))
-  pygame.display.flip()
-
-  # capture screen, action and score every "frame_capture" frames
-  if frame % frame_capture == 0:
-    screen_str = pygame.image.tostring(screen, "RGBX").hex()
-    np_array_action = np.array(action)
-    np.save("saved_gameplay/actions/" + str(frame), np_array_action)
-    with open("saved_gameplay/scores.txt", "w") as f:
-      f.write(str(goals_scored) + "\n")
-    np_array_screen = get_img_mat_from_hex(screen_str)
-    np.save("saved_gameplay/screens/" + str(frame), np_array_screen)
-
-  frame += 1
-
+    if env.frame % 20 == 0:
+        env.render()
