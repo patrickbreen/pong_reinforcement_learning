@@ -16,6 +16,7 @@ class MyPongEnv:
         self.goals_scored = 0
         self.frame_capture = 10
         self.frame = 0
+        self.STATE_SIZE = 3
 
         # set up objects
         self.screen = pygame.display.set_mode(self.size)
@@ -38,6 +39,9 @@ class MyPongEnv:
         os.mkdir("saved_gameplay/actions")
         shutil.rmtree("saved_gameplay/screens", ignore_errors=True)
         os.mkdir("saved_gameplay/screens")
+
+        self.score_surface = self.myfont.render(
+            "goals scored = " + str(self.goals_scored), False, (255, 255, 255))
 
 
     def step(self, action):
@@ -90,8 +94,11 @@ class MyPongEnv:
 
         # case where ball scores
         if self.ballrect.left < 0:
+            reward = -100
             self.goals_scored += 1
             self.velocity[0] = -self.velocity[0]
+        else:
+            reward = 0
 
         # cases where ball hits walls
         if self.ballrect.right > self.width:
@@ -123,10 +130,9 @@ class MyPongEnv:
         # if state is ball position and paddle position
         new_state = np.array([self.ballrect.right, self.ballrect.top, self.padrect1.top])
 
-        reward = self.goals_scored
         done = False
 
-        if reward == 4:
+        if self.goals_scored == 4:
             done = True
 
         return new_state, reward, done
@@ -137,10 +143,11 @@ class MyPongEnv:
             np.array([0,1,0]),
             np.array([0,0,1])
         ]
-        return random.sample(possible_actions)
+        return random.sample(possible_actions, 1)[0]
 
     def reset(self):
         self.__init__()
+        return np.array([self.ballrect.right, self.ballrect.top, self.padrect1.top])
 
     def render(self):
         # draw things to screen
@@ -163,12 +170,13 @@ class MyPongEnv:
         return action
 
 
-# human player
-env = MyPongEnv()
+if __name__ == "__main__":
+    # human player
+    env = MyPongEnv()
 
-while True:
-    action = env.human_player_input()
-    new_state, reward, done = env.step(action)
+    while True:
+        action = env.human_player_input()
+        new_state, reward, done = env.step(action)
 
-    if env.frame % 20 == 0:
-        env.render()
+        if env.frame % 20 == 0:
+            env.render()
